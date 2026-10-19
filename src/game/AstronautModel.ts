@@ -288,8 +288,8 @@ export function createAstronaut(): AstronautRig {
         model.scale.setScalar(scaleFactor);
         model.updateMatrixWorld(true);
 
-        // Face forward (+Z) in sync with camera and flashlight
-        model.rotation.y = Math.PI;
+        // Face forward (+Z) in sync with movement direction, camera, visor, and flashlight
+        model.rotation.y = 0;
 
         // Ground feet at y = 0
         const scaledBox = new THREE.Box3().setFromObject(model);
@@ -297,6 +297,21 @@ export function createAstronaut(): AstronautRig {
           model.position.y = -scaledBox.min.y;
           model.position.x = -(scaledBox.min.x + scaledBox.max.x) / 2;
           model.position.z = -(scaledBox.min.z + scaledBox.max.z) / 2;
+        }
+
+        // Attach weaponMount to mixamorig:RightHand bone if found so weapon moves with hand
+        let handBone: THREE.Object3D | null = null;
+        model.traverse((child) => {
+          if (child.name && (child.name.includes('RightHand') || child.name.includes('RightForeArm'))) {
+            handBone = child;
+          }
+        });
+        if (handBone) {
+          (handBone as THREE.Object3D).add(weaponMount);
+          weaponMount.position.set(0, 0.1, 0.05);
+          weaponMount.rotation.set(0, 0, 0);
+        } else {
+          weaponMount.position.set(-0.36, 1.05, 0.15);
         }
 
         // Initialize Animation Mixer

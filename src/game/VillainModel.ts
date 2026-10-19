@@ -166,7 +166,7 @@ export function createVillain(
         model.updateMatrixWorld(true);
 
         // Orient Mixamo alien model to face forward (+Z) towards target
-        model.rotation.y = Math.PI;
+        model.rotation.y = 0;
 
         // Ground feet at y = 0
         const scaledBox = new THREE.Box3().setFromObject(model);
@@ -331,7 +331,10 @@ export function createVillain(
         state = 'chase';
         const toPlayer = playerPos.clone().sub(root.position);
         const targetAngle = Math.atan2(toPlayer.x, toPlayer.z);
-        root.rotation.y = THREE.MathUtils.lerp(root.rotation.y, targetAngle, delta * 8);
+        let vDiff = targetAngle - root.rotation.y;
+        while (vDiff < -Math.PI) vDiff += Math.PI * 2;
+        while (vDiff > Math.PI) vDiff -= Math.PI * 2;
+        root.rotation.y += vDiff * Math.min(1.0, delta * 8);
 
         const fwd = new THREE.Vector3(Math.sin(root.rotation.y), 0, Math.cos(root.rotation.y));
         root.position.addScaledVector(fwd, speed * delta);

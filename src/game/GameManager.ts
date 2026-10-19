@@ -882,11 +882,10 @@ export class GameManager {
         moveDir.normalize();
 
         const targetRotation = Math.atan2(moveDir.x, moveDir.z);
-        this.playerRotation = THREE.MathUtils.lerp(
-          this.playerRotation,
-          targetRotation,
-          delta * 14
-        );
+        let diff = targetRotation - this.playerRotation;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        this.playerRotation += diff * Math.min(1.0, delta * 18);
         this.astronaut.root.rotation.y = this.playerRotation;
 
         this.playerPos.addScaledVector(moveDir, moveSpeed * delta);
