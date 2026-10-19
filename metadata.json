@@ -1,0 +1,6 @@
+{
+  "name": "LAST HORIZON - 3D Sci-Fi Exploration Game",
+  "description": "An interactive 3D sci-fi adventure, exploration, and survival game where a lone astronaut searches for a new home across alien planets.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
