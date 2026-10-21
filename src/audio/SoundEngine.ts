@@ -654,6 +654,101 @@ class SoundEngine {
       // Ignored
     }
   }
+
+  // Mission Completed Triumph Fanfare
+  public playMissionComplete() {
+    if (this.isMuted) return;
+    this.resume();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const notes = [440, 554.37, 659.25, 880]; // A4, C#5, E5, A5
+    notes.forEach((freq, idx) => {
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.1);
+
+      gain.gain.setValueAtTime(0.14, now + idx * 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.45);
+
+      osc.connect(gain);
+      gain.connect(this.ctx!.destination);
+      osc.start(now + idx * 0.1);
+      osc.stop(now + idx * 0.1 + 0.45);
+    });
+  }
+
+  // Alien Companion Gentle Chirp & Trill
+  public playCompanionChirp() {
+    if (this.isMuted) return;
+    this.resume();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(680, now);
+    osc.frequency.exponentialRampToValueAtTime(1150, now + 0.08);
+    osc.frequency.exponentialRampToValueAtTime(880, now + 0.16);
+
+    gain.gain.setValueAtTime(0.12, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.18);
+  }
+
+  // Companion Alert / Danger Warning Chirp
+  public playCompanionAlert() {
+    if (this.isMuted) return;
+    this.resume();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    [0, 0.09, 0.18].forEach((offset, idx) => {
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(950 + idx * 80, now + offset);
+      osc.frequency.exponentialRampToValueAtTime(600, now + offset + 0.07);
+
+      gain.gain.setValueAtTime(0.1, now + offset);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.07);
+
+      osc.connect(gain);
+      gain.connect(this.ctx!.destination);
+      osc.start(now + offset);
+      osc.stop(now + offset + 0.07);
+    });
+  }
+
+  // Companion Delighted Purr / Petted Sound
+  public playCompanionHappy() {
+    if (this.isMuted) return;
+    this.resume();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const chords = [523.25, 659.25, 783.99, 1046.5]; // C Major arpeggio
+    chords.forEach((freq, idx) => {
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+
+      gain.gain.setValueAtTime(0.1, now + idx * 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.06 + 0.22);
+
+      osc.connect(gain);
+      gain.connect(this.ctx!.destination);
+      osc.start(now + idx * 0.06);
+      osc.stop(now + idx * 0.06 + 0.22);
+    });
+  }
 }
 
 export const soundEngine = new SoundEngine();

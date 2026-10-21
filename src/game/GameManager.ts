@@ -6,6 +6,7 @@ import {
   InteractableObject,
   CreatureEntity,
   GameState,
+  Mission,
 } from '../types/game';
 import { PLANETS } from './PlanetData';
 import { createAstronaut, AstronautRig } from './AstronautModel';
@@ -30,6 +31,8 @@ import { soundEngine } from '../audio/SoundEngine';
 import { createVillain, VillainEntityInstance } from './VillainModel';
 import { WEAPON_TYPES, createWeaponMesh, Projectile } from './WeaponSystem';
 import { WeaponDef } from '../types/game';
+import { createCompanionPet, CompanionPetInstance } from './CompanionPet';
+import { INITIAL_MISSIONS } from './MissionSystem';
 
 export interface GameCallbacks {
   onSuitUpdate: (suit: SuitStatus) => void;
@@ -40,6 +43,9 @@ export interface GameCallbacks {
   onTriggerEvent: (eventId: string) => void;
   onPlanetChange: (planet: PlanetDef) => void;
   onResourceCollected: (name: string, amount: number) => void;
+  onMissionsUpdate?: (missions: Mission[]) => void;
+  onCompanionUpdate?: (isBefriended: boolean, isNearby: boolean) => void;
+  onClueFound?: () => void;
 }
 
 export class GameManager {
@@ -85,9 +91,18 @@ export class GameManager {
   private lastMouseX = 0;
   private lastMouseY = 0;
 
+  // Mobile Touch Camera Drag State
+  private touchCameraId: number | null = null;
+  private lastTouchCamX = 0;
+  private lastTouchCamY = 0;
+
   // Game Logic States
   public gameState: GameState = 'intro';
   public villain: VillainEntityInstance | null = null;
+  public companion: CompanionPetInstance | null = null;
+  public missions: Mission[] = JSON.parse(JSON.stringify(INITIAL_MISSIONS));
+  private hazardTimer = 0;
+  private collectedResourceTypes = new Set<string>();
   private projectiles: Projectile[] = [];
   private weaponCooldown = 0;
   private dragStartX = 0;
@@ -256,6 +271,66 @@ export class GameManager {
         9.0
       );
     });
+
+    // Mobile Touch Drag for Smooth Camera Orbiting (Dual-thumb mobile control)
+    window.addEventListener(
+      'touchstart',
+      (e) => {
+        if (this.touchCameraId !== null) return;
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const t = e.changedTouches[i];
+          // Check if touch is outside the bottom-left virtual joystick zone
+          const isOutsideJoystick =
+            t.clientX > window.innerWidth * 0.35 || t.clientY < window.innerHeight * 0.55;
+          const target = t.target as HTMLElement;
+          const isInteractive = target && target.closest('button, input, select, a');
+
+          if (isOutsideJoystick && !isInteractive) {
+            this.touchCameraId = t.identifier;
+            this.lastTouchCamX = t.clientX;
+            this.lastTouchCamY = t.clientY;
+            break;
+          }
+        }
+      },
+      { passive: true }
+    );
+
+    window.addEventListener(
+      'touchmove',
+      (e) => {
+        if (this.touchCameraId === null) return;
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const t = e.changedTouches[i];
+          if (t.identifier === this.touchCameraId) {
+            const dx = t.clientX - this.lastTouchCamX;
+            const dy = t.clientY - this.lastTouchCamY;
+            this.lastTouchCamX = t.clientX;
+            this.lastTouchCamY = t.clientY;
+
+            this.cameraYaw -= dx * 0.0055;
+            this.cameraPitch = THREE.MathUtils.clamp(
+              this.cameraPitch - dy * 0.0055,
+              -0.3,
+              1.2
+            );
+            break;
+          }
+        }
+      },
+      { passive: true }
+    );
+
+    const handleTouchEndCam = (e: TouchEvent) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === this.touchCameraId) {
+          this.touchCameraId = null;
+          break;
+        }
+      }
+    };
+    window.addEventListener('touchend', handleTouchEndCam, { passive: true });
+    window.addEventListener('touchcancel', handleTouchEndCam, { passive: true });
   }
 
   private handleKeyDown = (e: KeyboardEvent) => {
@@ -382,9 +457,21 @@ export class GameManager {
       this.scene.add(this.villain.mesh);
     }
 
+    // Clean up or spawn alien companion pet (Aelis)
+    if (this.companion && !this.companion.isBefriended) {
+      this.scene.remove(this.companion.mesh);
+      this.companion = null;
+    }
+    if (!this.companion) {
+      const petY = this.terrainResult.getTerrainHeight(9.0, 8.5) + 0.8;
+      this.companion = createCompanionPet([9.0, petY, 8.5]);
+      this.scene.add(this.companion.mesh);
+    }
+
     // Audio ambience
     soundEngine.startAmbient(planet.type.toLowerCase());
     this.callbacks.onPlanetChange(planet);
+    this.callbacks.onMissionsUpdate?.([...this.missions]);
   }
 
   // Switch to Opening Intro Cinematic
@@ -638,6 +725,9 @@ export class GameManager {
     });
 
     this.callbacks.onScanResult(nearestTarget);
+    if (nearestTarget) {
+      this.advanceMission('m_scan_flora_fauna', 1);
+    }
 
     setTimeout(() => {
       this.suit.isScanning = false;
@@ -647,6 +737,12 @@ export class GameManager {
 
   // Interaction Trigger (E key)
   public triggerInteraction() {
+    // Check if near Companion Pet Aelis
+    if (this.companion && this.playerPos.distanceTo(this.companion.mesh.position) < 3.6) {
+      this.petCompanion();
+      return;
+    }
+
     // Check if near Spaceship Boarding Ramp (at origin [0, 0, 3.8])
     const distToRamp = this.playerPos.distanceTo(new THREE.Vector3(0, 0, 3.8));
     if (distToRamp < 4.2) {
@@ -667,6 +763,7 @@ export class GameManager {
           // If this is a weapon pickup
           if (item.type === 'weapon' && item.weaponReward) {
             this.equipWeapon(item.weaponReward);
+            this.advanceMission('m_find_weapon', 1);
             const meshGroup = this.terrainResult.interactableMeshes.children.find(
               (g) => g.position.distanceTo(itemPos) < 1.2
             );
@@ -683,13 +780,19 @@ export class GameManager {
               item.resourceReward.amount
             );
 
+            // Track resource categories for final beacon mission
+            this.collectedResourceTypes.add(item.resourceReward.category);
+            this.advanceMission('m_final_beacon', this.collectedResourceTypes.size);
+
             // Recharge suit if energy or water
             if (item.resourceReward.category === 'energy') {
               this.suit.energy = Math.min(100, this.suit.energy + 25);
+              this.advanceMission('m_harvest_crystals', 1);
             } else if (item.resourceReward.category === 'oxygen') {
               this.suit.lifeSupport = Math.min(100, this.suit.lifeSupport + 25);
               // Medical / oxygen node also restores 1 full heart
               this.suit.health = Math.min(100, this.suit.health + 20);
+              this.advanceMission('m_extract_water', 1);
             }
             this.callbacks.onSuitUpdate(this.suit);
           }
@@ -697,6 +800,7 @@ export class GameManager {
           // Trigger special story event if it is an ancient ruin or relic
           if (item.type === 'ruins') {
             this.callbacks.onTriggerEvent('evt_ancient_monolith');
+            this.advanceMission('m_discover_ruins', 1);
           }
 
           // Visual feedback: shrink or dim node
@@ -796,6 +900,67 @@ export class GameManager {
     soundEngine.playAlienDefeated();
     this.callbacks.onResourceCollected('Precursor Dark Matter Core', 1);
     this.callbacks.onTriggerEvent('evt_alien_encounter');
+    this.advanceMission('m_defeat_villain', 1);
+  }
+
+  // Pet Companion Interaction
+  public petCompanion() {
+    if (!this.companion) return;
+    if (!this.companion.isBefriended) {
+      this.companion.befriend();
+      this.callbacks.onInteractPrompt('АЭЛИС ТЕПЕРЬ ВАШ ПРЕДАННЫЙ СПУТНИК! ❤');
+      this.advanceMission('m_befriend_pet', 1);
+    } else {
+      this.companion.pet();
+      this.callbacks.onInteractPrompt('АЭЛИС РАДОСТНО КУВЫРКАЕТСЯ В ВОЗДУХЕ! ✨');
+    }
+    this.callbacks.onCompanionUpdate?.(
+      this.companion.isBefriended,
+      this.playerPos.distanceTo(this.companion.mesh.position) < 5.0
+    );
+  }
+
+  // Story Survival Mission Progress System
+  public advanceMission(missionId: string, count: number = 1) {
+    const mission = this.missions.find((m) => m.id === missionId);
+    if (!mission || mission.completed) return;
+
+    mission.currentCount = Math.min(mission.targetCount, mission.currentCount + count);
+    if (mission.currentCount >= mission.targetCount) {
+      mission.completed = true;
+      soundEngine.playMissionComplete();
+      this.callbacks.onInteractPrompt(`МИССИЯ ВЫПОЛНЕНА: ${mission.title.toUpperCase()}!`);
+    }
+    this.callbacks.onMissionsUpdate?.([...this.missions]);
+  }
+
+  // Claim Mission Reward & Apply Upgrades
+  public claimMissionReward(missionId: string) {
+    const mission = this.missions.find((m) => m.id === missionId);
+    if (!mission || !mission.completed || mission.claimed) return;
+
+    mission.claimed = true;
+    soundEngine.playCollect();
+
+    const { type, amount } = mission.reward;
+    if (type === 'health') {
+      this.suit.maxHealth = (this.suit.maxHealth || 100) + amount;
+      this.suit.health = Math.min(this.suit.maxHealth, this.suit.health + amount);
+    } else if (type === 'energy') {
+      this.suit.energy = Math.min(100, this.suit.energy + amount);
+    } else if (type === 'integrity') {
+      this.suit.integrity = Math.min(100, this.suit.integrity + amount);
+    } else if (type === 'pet') {
+      if (this.companion && !this.companion.isBefriended) {
+        this.companion.befriend();
+      }
+    } else if (type === 'clue') {
+      this.callbacks.onClueFound?.();
+    }
+
+    this.callbacks.onSuitUpdate(this.suit);
+    this.callbacks.onMissionsUpdate?.([...this.missions]);
+    this.callbacks.onInteractPrompt(`НАГРАДА ПОЛУЧЕНА: ${mission.reward.title.toUpperCase()}`);
   }
 
   public toggleFlashlight() {
@@ -889,6 +1054,31 @@ export class GameManager {
         this.astronaut.root.rotation.y = this.playerRotation;
 
         this.playerPos.addScaledVector(moveDir, moveSpeed * delta);
+
+        // Obstacle & Rock Collision Physics (Prevents walking through rocks, boulders, and monoliths)
+        if (this.terrainResult.obstacles && this.terrainResult.obstacles.length > 0) {
+          const playerRadius = 0.55;
+          for (let pass = 0; pass < 2; pass++) {
+            for (let i = 0; i < this.terrainResult.obstacles.length; i++) {
+              const obs = this.terrainResult.obstacles[i];
+              const dx = this.playerPos.x - obs.x;
+              const dz = this.playerPos.z - obs.z;
+              const distSq = dx * dx + dz * dz;
+              const minDist = playerRadius + obs.radius;
+
+              if (distSq < minDist * minDist) {
+                const dist = Math.sqrt(distSq);
+                if (dist > 0.0001) {
+                  const push = minDist - dist;
+                  this.playerPos.x += (dx / dist) * push;
+                  this.playerPos.z += (dz / dist) * push;
+                } else {
+                  this.playerPos.x += minDist;
+                }
+              }
+            }
+          }
+        }
       }
 
       // Footstep sound timing
@@ -1014,6 +1204,43 @@ export class GameManager {
       }
     }
 
+    // Update Companion Pet (Aelis)
+    if (this.companion) {
+      let nearestTreasureDist = 999;
+      if (this.terrainResult) {
+        for (const item of this.terrainResult.interactables) {
+          if (!item.interacted) {
+            const d = this.playerPos.distanceTo(
+              new THREE.Vector3(item.position[0], item.position[1], item.position[2])
+            );
+            if (d < nearestTreasureDist) nearestTreasureDist = d;
+          }
+        }
+      }
+
+      this.companion.update(
+        delta,
+        this.playerPos,
+        isMoving,
+        isEncounteringVillain,
+        nearestTreasureDist,
+        this.terrainResult.getTerrainHeight
+      );
+
+      const distToPet = this.playerPos.distanceTo(this.companion.mesh.position);
+      this.callbacks.onCompanionUpdate?.(this.companion.isBefriended, distToPet < 6.0);
+    }
+
+    // Hazard Survival tracking (60 seconds away from safety dome)
+    const distToShipForSurvival = this.playerPos.distanceTo(new THREE.Vector3(0, 0, 0));
+    if (distToShipForSurvival > 8.0) {
+      this.hazardTimer += delta;
+      if (this.hazardTimer >= 1.0) {
+        this.hazardTimer -= 1.0;
+        this.advanceMission('m_hazard_survival', 1);
+      }
+    }
+
     // Update Environmental Suit Life Support & Hazards
     this.updateSuitSimulation(delta);
 
@@ -1108,6 +1335,20 @@ export class GameManager {
 
   // Check Nearby Targets for [E] Interact Prompt
   private checkInteractionPrompts() {
+    // Check Companion Pet Aelis
+    if (this.companion) {
+      const distToPet = this.playerPos.distanceTo(this.companion.mesh.position);
+      if (distToPet < 3.5) {
+        if (!this.companion.isBefriended) {
+          this.callbacks.onInteractPrompt('[E] ПРИРУЧИТЬ АЭЛИС (BEFRIEND)');
+          return;
+        } else {
+          this.callbacks.onInteractPrompt('[E] ПОГЛАДИТЬ АЭЛИС (PET)');
+          return;
+        }
+      }
+    }
+
     const distToShip = this.playerPos.distanceTo(new THREE.Vector3(0, 0, 3.8));
     if (distToShip < 4.2) {
       this.callbacks.onInteractPrompt('[E] ENTER SPACESHIP');

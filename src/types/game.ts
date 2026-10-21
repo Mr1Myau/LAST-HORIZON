@@ -179,3 +179,23 @@ export interface GameSaveData {
   playerLocation: [number, number, number];
   timestamp: number;
 }
+
+export type MissionDifficulty = 'easy' | 'medium' | 'hard';
+
+export interface Mission {
+  id: string;
+  category: MissionDifficulty;
+  title: string;
+  description: string;
+  targetCount: number;
+  currentCount: number;
+  completed: boolean;
+  claimed: boolean;
+  reward: {
+    title: string;
+    description: string;
+    type: 'health' | 'energy' | 'integrity' | 'weapon' | 'resource' | 'clue' | 'pet';
+    amount: number;
+    resourceName?: string;
+  };
+}

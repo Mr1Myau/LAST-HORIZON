@@ -1,5 +1,5 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { ArrowUp, Hand, Scan, Flashlight, Crosshair } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { ArrowUp, Hand, Scan, Flashlight, Crosshair, Sparkles, Target } from 'lucide-react';
 import { soundEngine } from '../audio/SoundEngine';
 
 interface TouchControlsProps {
@@ -10,6 +10,10 @@ interface TouchControlsProps {
   onFlashlightToggle: () => void;
   onFirePress?: () => void;
   hasWeapon?: boolean;
+  onOpenMissions?: () => void;
+  unclaimedMissionsCount?: number;
+  onPetCompanion?: () => void;
+  isCompanionNearby?: boolean;
 }
 
 export const TouchControls: React.FC<TouchControlsProps> = ({
@@ -20,19 +24,22 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   onFlashlightToggle,
   onFirePress,
   hasWeapon,
+  onOpenMissions,
+  unclaimedMissionsCount = 0,
+  onPetCompanion,
+  isCompanionNearby,
 }) => {
   const joystickBaseRef = useRef<HTMLDivElement>(null);
   const [knobPos, setKnobPos] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
   const touchIdRef = useRef<number | null>(null);
 
-  const maxRadius = 45;
+  // Compact joystick radius suitable for smartphones
+  const maxRadius = 36;
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (touchIdRef.current !== null) return;
     const touch = e.changedTouches[0];
     touchIdRef.current = touch.identifier;
-    setIsDragging(true);
     updateJoystick(touch.clientX, touch.clientY);
   };
 
@@ -50,7 +57,6 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     for (let i = 0; i < e.changedTouches.length; i++) {
       if (e.changedTouches[i].identifier === touchIdRef.current) {
         touchIdRef.current = null;
-        setIsDragging(false);
         setKnobPos({ x: 0, y: 0 });
         onJoystickMove(0, 0);
         break;
@@ -81,50 +87,74 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   };
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-30 flex justify-between items-end p-6 select-none md:hidden">
-      {/* Virtual Joystick (Left) */}
+    <div className="absolute inset-0 pointer-events-none z-30 flex justify-between items-end p-3 sm:p-5 select-none md:hidden">
+      {/* Virtual Joystick (Left) - Compact 88px */}
       <div
         ref={joystickBaseRef}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchEnd}
-        className="w-32 h-32 rounded-full bg-slate-900/60 border-2 border-cyan-500/40 backdrop-blur-sm flex items-center justify-center pointer-events-auto touch-none relative"
+        className="w-22 h-22 sm:w-24 sm:h-24 rounded-full bg-slate-900/50 border border-cyan-500/40 backdrop-blur-sm flex items-center justify-center pointer-events-auto touch-none relative shadow-lg shadow-cyan-950/40"
       >
         <div
-          className="w-14 h-14 rounded-full bg-cyan-500/70 border border-cyan-300 shadow-lg shadow-cyan-500/30 transition-transform duration-75 flex items-center justify-center text-white"
+          className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-cyan-500/80 border border-cyan-300 shadow-md shadow-cyan-500/30 transition-transform duration-75 flex items-center justify-center text-white"
           style={{
             transform: `translate(${knobPos.x}px, ${knobPos.y}px)`,
           }}
         >
-          <div className="w-4 h-4 rounded-full bg-white/60" />
+          <div className="w-3 h-3 rounded-full bg-white/70" />
         </div>
       </div>
 
-      {/* Action Buttons (Right) */}
-      <div className="flex flex-col gap-3 items-end pointer-events-auto">
-        <div className="flex gap-2">
+      {/* Action Buttons (Right) - Streamlined, non-blocking */}
+      <div className="flex flex-col gap-2 items-end pointer-events-auto">
+        {/* Top Action Row (Missions, Pet, Weapon) */}
+        <div className="flex items-center gap-1.5">
+          {/* Mission Log Quick Button */}
+          {onOpenMissions && (
+            <button
+              onTouchStart={() => {
+                soundEngine.playUiClick();
+                onOpenMissions();
+              }}
+              title="Миссии"
+              className="relative w-10 h-10 rounded-full bg-slate-900/70 border border-amber-400/70 text-amber-300 flex items-center justify-center active:scale-95 shadow-md backdrop-blur-sm"
+            >
+              <Target className="w-5 h-5 text-amber-400" />
+              {unclaimedMissionsCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-bold font-mono-tech flex items-center justify-center animate-bounce">
+                  {unclaimedMissionsCount}
+                </span>
+              )}
+            </button>
+          )}
+
+          {/* Pet Companion Interaction Button */}
+          {isCompanionNearby && onPetCompanion && (
+            <button
+              onTouchStart={() => {
+                onPetCompanion();
+              }}
+              title="Погладить питомца"
+              className="w-10 h-10 rounded-full bg-sky-900/80 border border-sky-400 text-sky-200 flex items-center justify-center active:scale-95 shadow-md shadow-sky-500/30 animate-pulse backdrop-blur-sm"
+            >
+              <Sparkles className="w-5 h-5 text-sky-300" />
+            </button>
+          )}
+
+          {/* Weapon Fire Button */}
           {hasWeapon && onFirePress && (
             <button
               onTouchStart={() => {
                 onFirePress();
               }}
-              className="w-14 h-14 rounded-full bg-red-950/80 border-2 border-red-500 text-red-300 flex items-center justify-center active:scale-95 shadow-lg active:bg-red-700 animate-pulse"
+              title="Огонь"
+              className="w-11 h-11 rounded-full bg-red-950/80 border border-red-500 text-red-300 flex items-center justify-center active:scale-95 shadow-lg shadow-red-500/30 active:bg-red-700 animate-pulse"
             >
-              <Crosshair className="w-7 h-7" />
+              <Crosshair className="w-5 h-5" />
             </button>
           )}
-
-          {/* Scan Button */}
-          <button
-            onTouchStart={() => {
-              soundEngine.playUiClick();
-              onScanPress();
-            }}
-            className="w-14 h-14 rounded-full bg-sky-950/80 border-2 border-sky-400 text-sky-300 flex items-center justify-center active:scale-95 shadow-lg active:bg-sky-700"
-          >
-            <Scan className="w-6 h-6" />
-          </button>
 
           {/* Flashlight */}
           <button
@@ -132,25 +162,40 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
               soundEngine.playUiClick();
               onFlashlightToggle();
             }}
-            className="w-14 h-14 rounded-full bg-slate-900/80 border-2 border-amber-400 text-amber-300 flex items-center justify-center active:scale-95 shadow-lg"
+            title="Фонарь"
+            className="w-10 h-10 rounded-full bg-slate-900/70 border border-amber-400/50 text-amber-300 flex items-center justify-center active:scale-95 shadow-md backdrop-blur-sm"
           >
-            <Flashlight className="w-6 h-6" />
+            <Flashlight className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="flex gap-2">
-          {/* Interact Button */}
+        {/* Primary Action Row (Scan, Interact, Jump) */}
+        <div className="flex items-center gap-2">
+          {/* Scan Button */}
+          <button
+            onTouchStart={() => {
+              soundEngine.playUiClick();
+              onScanPress();
+            }}
+            title="Сканер [F]"
+            className="w-11 h-11 rounded-full bg-sky-950/80 border border-sky-400/70 text-sky-300 flex items-center justify-center active:scale-95 shadow-md active:bg-sky-700 backdrop-blur-sm"
+          >
+            <Scan className="w-5 h-5" />
+          </button>
+
+          {/* Interact Button [E] */}
           <button
             onTouchStart={() => {
               soundEngine.playUiClick();
               onInteractPress();
             }}
-            className="w-16 h-16 rounded-full bg-emerald-950/80 border-2 border-emerald-400 text-emerald-300 flex items-center justify-center active:scale-95 shadow-lg font-bold font-mono-tech"
+            title="Взаимодействие [E]"
+            className="w-12 h-12 rounded-full bg-emerald-950/85 border-2 border-emerald-400 text-emerald-300 flex items-center justify-center active:scale-95 shadow-lg active:bg-emerald-700 font-bold backdrop-blur-sm"
           >
-            <Hand className="w-7 h-7" />
+            <Hand className="w-6 h-6" />
           </button>
 
-          {/* Jump / Jetpack Button */}
+          {/* Jump / Jetpack Button [SPACE] */}
           <button
             onTouchStart={() => {
               onJumpPress(true);
@@ -158,9 +203,10 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
             onTouchEnd={() => {
               onJumpPress(false);
             }}
-            className="w-16 h-16 rounded-full bg-cyan-600/80 border-2 border-cyan-300 text-white flex items-center justify-center active:scale-95 shadow-lg shadow-cyan-500/30"
+            title="Прыжок / Джетпак"
+            className="w-12 h-12 rounded-full bg-cyan-600/85 border-2 border-cyan-300 text-white flex items-center justify-center active:scale-95 shadow-lg shadow-cyan-500/30 active:bg-cyan-500 backdrop-blur-sm"
           >
-            <ArrowUp className="w-8 h-8" />
+            <ArrowUp className="w-6 h-6" />
           </button>
         </div>
       </div>

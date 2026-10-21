@@ -10,12 +10,20 @@ function pseudoNoise(x: number, z: number): number {
   return s1 + s2 + s3;
 }
 
+export interface ObstacleCollider {
+  x: number;
+  z: number;
+  radius: number;
+  height: number;
+}
+
 export interface TerrainResult {
   terrainMesh: THREE.Mesh;
   getTerrainHeight: (x: number, z: number) => number;
   decorationsGroup: THREE.Group;
   interactables: InteractableObject[];
   interactableMeshes: THREE.Group;
+  obstacles: ObstacleCollider[];
   particles: THREE.Points;
   skyDome: THREE.Mesh;
 }
@@ -28,6 +36,10 @@ export function buildPlanetEnvironment(planet: PlanetDef): TerrainResult {
   interactableMeshes.name = 'PlanetInteractables';
 
   const interactables: InteractableObject[] = [];
+  const obstacles: ObstacleCollider[] = [
+    // Spaceship hull obstacle at landing pad origin
+    { x: 0, z: 0, radius: 4.0, height: 6.0 },
+  ];
 
   // Terrain height calculation function
   const getTerrainHeight = (x: number, z: number): number => {
@@ -145,6 +157,14 @@ export function buildPlanetEnvironment(planet: PlanetDef): TerrainResult {
     dummy.updateMatrix();
 
     rockMesh.setMatrixAt(rockIndex++, dummy.matrix);
+
+    // Register rock obstacle collider for player physics
+    obstacles.push({
+      x: rx,
+      z: rz,
+      radius: scale * 1.35,
+      height: scale * 2.5,
+    });
   }
   rockMesh.instanceMatrix.needsUpdate = true;
   decorationsGroup.add(rockMesh);
@@ -448,6 +468,7 @@ export function buildPlanetEnvironment(planet: PlanetDef): TerrainResult {
     decorationsGroup,
     interactables,
     interactableMeshes,
+    obstacles,
     particles,
     skyDome,
   };

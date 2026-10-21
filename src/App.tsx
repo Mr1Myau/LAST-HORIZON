@@ -25,8 +25,10 @@ import { IntroCinematic } from './components/IntroCinematic';
 import { TouchControls } from './components/TouchControls';
 import { PauseMenu } from './components/PauseMenu';
 import { PWAInstallModal } from './components/PWAInstallModal';
+import { MissionsModal } from './components/MissionsModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { Sparkles, Trophy, RotateCcw } from 'lucide-react';
+import { Mission } from './types/game';
 
 const SAVE_KEY = 'LAST_HORIZON_SAVE_V1';
 
@@ -76,6 +78,10 @@ export default function App() {
   const [showShipTerminal, setShowShipTerminal] = useState(false);
   const [showCodex, setShowCodex] = useState(false);
   const [showPauseMenu, setShowPauseMenu] = useState(false);
+  const [showMissionsModal, setShowMissionsModal] = useState(false);
+  const [missions, setMissions] = useState<Mission[]>([]);
+  const [isCompanionBefriended, setIsCompanionBefriended] = useState(false);
+  const [isCompanionNearby, setIsCompanionNearby] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [showVictory, setShowVictory] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
@@ -89,6 +95,18 @@ export default function App() {
       }
       return next;
     });
+  }, []);
+
+  const handleClaimMissionReward = useCallback((missionId: string) => {
+    if (gameManagerRef.current) {
+      gameManagerRef.current.claimMissionReward(missionId);
+    }
+  }, []);
+
+  const handlePetCompanion = useCallback(() => {
+    if (gameManagerRef.current) {
+      gameManagerRef.current.petCompanion();
+    }
   }, []);
 
   // Notification Toast
@@ -222,9 +240,29 @@ export default function App() {
           };
         });
       },
+      onMissionsUpdate: (updatedMissions) => {
+        setMissions([...updatedMissions]);
+      },
+      onCompanionUpdate: (befriended, nearby) => {
+        setIsCompanionBefriended(befriended);
+        setIsCompanionNearby(nearby);
+      },
+      onClueFound: () => {
+        setHomeworldCluesFound((prev) => {
+          const next = prev + 1;
+          showToast(`CRITICAL LORE REVEALED: HOMEWORLD CLUE (${next}/5)`);
+          if (next >= 5) {
+            setTimeout(() => {
+              setShowVictory(true);
+            }, 3000);
+          }
+          return next;
+        });
+      },
     });
 
     gameManagerRef.current = gm;
+    setMissions([...gm.missions]);
 
     if (!hasSave) {
       gm.startIntroCinematic();
@@ -232,7 +270,7 @@ export default function App() {
       gm.finishIntro();
     }
 
-    // Global Key Listener for Tab (Codex) and Esc (Pause)
+    // Global Key Listener for Tab (Codex), Esc (Pause), and M (Missions)
     const handleKey = (e: KeyboardEvent) => {
       if (e.code === 'Tab') {
         e.preventDefault();
@@ -242,6 +280,10 @@ export default function App() {
       if (e.code === 'Escape') {
         soundEngine.playUiClick();
         setShowPauseMenu((prev) => !prev);
+      }
+      if (e.code === 'KeyM') {
+        soundEngine.playUiClick();
+        setShowMissionsModal((prev) => !prev);
       }
     };
     window.addEventListener('keydown', handleKey);
@@ -437,6 +479,9 @@ export default function App() {
             animationMode={animationMode}
             onToggleAnimationMode={toggleAnimationMode}
             onOpenInstallModal={() => setShowInstallModal(true)}
+            onOpenMissions={() => setShowMissionsModal(true)}
+            unclaimedMissionsCount={missions.filter((m) => m.completed && !m.claimed).length}
+            isCompanionBefriended={isCompanionBefriended}
           />
 
           {/* Mobile Touch Virtual Controls */}
@@ -448,6 +493,10 @@ export default function App() {
             onFlashlightToggle={handleFlashlightToggle}
             onFirePress={handleFireWeapon}
             hasWeapon={Boolean(suit.weapon)}
+            onOpenMissions={() => setShowMissionsModal(true)}
+            unclaimedMissionsCount={missions.filter((m) => m.completed && !m.claimed).length}
+            onPetCompanion={handlePetCompanion}
+            isCompanionNearby={isCompanionNearby || isCompanionBefriended}
           />
         </>
       )}
@@ -475,7 +524,15 @@ export default function App() {
         />
       )}
 
-      {/* 5. Codex Database Modal */}
+      {/* 5. Missions Log Modal */}
+      <MissionsModal
+        isOpen={showMissionsModal}
+        onClose={() => setShowMissionsModal(false)}
+        missions={missions}
+        onClaimReward={handleClaimMissionReward}
+      />
+
+      {/* 6. Codex Database Modal */}
       {showCodex && (
         <CodexModal
           codex={codex}
@@ -484,7 +541,7 @@ export default function App() {
         />
       )}
 
-      {/* 6. Narrative Story Dilemma Modal */}
+      {/* 7. Narrative Story Dilemma Modal */}
       {activeEvent && (
         <EventModal
           event={activeEvent}
@@ -493,7 +550,7 @@ export default function App() {
         />
       )}
 
-      {/* 7. System Pause Menu */}
+      {/* 8. System Pause Menu */}
       {showPauseMenu && (
         <PauseMenu
           onClose={() => setShowPauseMenu(false)}
