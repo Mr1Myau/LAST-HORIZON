@@ -24,6 +24,8 @@ import { EventModal } from './components/EventModal';
 import { IntroCinematic } from './components/IntroCinematic';
 import { TouchControls } from './components/TouchControls';
 import { PauseMenu } from './components/PauseMenu';
+import { PWAInstallModal } from './components/PWAInstallModal';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import { Sparkles, Trophy, RotateCcw } from 'lucide-react';
 
 const SAVE_KEY = 'LAST_HORIZON_SAVE_V1';
@@ -76,6 +78,7 @@ export default function App() {
   const [showPauseMenu, setShowPauseMenu] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [showVictory, setShowVictory] = useState(false);
+  const [showInstallModal, setShowInstallModal] = useState(false);
   const [animationMode, setAnimationMode] = useState<'auto' | 'always' | 'idle'>('auto');
 
   const toggleAnimationMode = useCallback(() => {
@@ -433,6 +436,7 @@ export default function App() {
             homeworldCluesFound={homeworldCluesFound}
             animationMode={animationMode}
             onToggleAnimationMode={toggleAnimationMode}
+            onOpenInstallModal={() => setShowInstallModal(true)}
           />
 
           {/* Mobile Touch Virtual Controls */}
@@ -504,8 +508,18 @@ export default function App() {
             setIsMuted(next);
             soundEngine.setMuted(next);
           }}
+          onOpenInstallModal={() => setShowInstallModal(true)}
         />
       )}
+
+      {/* PWA Mobile App Installation Modal */}
+      <PWAInstallModal
+        isOpen={showInstallModal}
+        onClose={() => setShowInstallModal(false)}
+      />
+
+      {/* Offline Status Connectivity Badge */}
+      <OfflineIndicator />
 
       {/* 8. Cinematic Hyperspace HUD Banner */}
       {gameState === 'cinematic_flight' && (

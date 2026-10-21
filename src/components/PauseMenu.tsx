@@ -1,6 +1,6 @@
 import React from 'react';
 import { soundEngine } from '../audio/SoundEngine';
-import { Play, RotateCcw, Volume2, VolumeX, Save, HelpCircle, X } from 'lucide-react';
+import { Play, RotateCcw, Volume2, VolumeX, Save, HelpCircle, X, Smartphone } from 'lucide-react';
 
 interface PauseMenuProps {
   onClose: () => void;
@@ -8,6 +8,7 @@ interface PauseMenuProps {
   onSaveGame: () => void;
   isMuted: boolean;
   onToggleMute: () => void;
+  onOpenInstallModal?: () => void;
 }
 
 export const PauseMenu: React.FC<PauseMenuProps> = ({
@@ -16,6 +17,7 @@ export const PauseMenu: React.FC<PauseMenuProps> = ({
   onSaveGame,
   isMuted,
   onToggleMute,
+  onOpenInstallModal,
 }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-xl animate-fade-in font-mono-tech select-none">
@@ -59,11 +61,24 @@ export const PauseMenu: React.FC<PauseMenuProps> = ({
               soundEngine.playUiClick();
               onSaveGame();
             }}
-            className="w-full p-3 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-700 hover:border-cyan-400 text-sm font-semibold text-slate-200 hover:text-white transition-all flex items-center justify-center gap-2"
+            className="w-full p-3 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-700 hover:border-cyan-400 text-sm font-semibold text-slate-200 hover:text-white transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <Save className="w-4 h-4 text-cyan-400" />
             <span>SAVE PROGRESS (LOCAL STORAGE)</span>
           </button>
+
+          {onOpenInstallModal && (
+            <button
+              onClick={() => {
+                soundEngine.playUiClick();
+                onOpenInstallModal();
+              }}
+              className="w-full p-3 rounded-xl bg-gradient-to-r from-cyan-950/90 to-blue-950/90 hover:from-cyan-900 hover:to-blue-900 border border-cyan-500/50 hover:border-cyan-400 text-sm font-semibold text-cyan-200 hover:text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-cyan-950/40 cursor-pointer"
+            >
+              <Smartphone className="w-4 h-4 text-cyan-400" />
+              <span>УСТАНОВИТЬ НА СМАРТФОН (PWA APP)</span>
+            </button>
+          )}
 
           <button
             onClick={() => {

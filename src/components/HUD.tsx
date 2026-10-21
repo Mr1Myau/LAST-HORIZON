@@ -15,6 +15,8 @@ import {
   Heart,
   Crosshair,
   Zap,
+  Smartphone,
+  Download,
 } from 'lucide-react';
 import { soundEngine } from '../audio/SoundEngine';
 
@@ -33,6 +35,7 @@ interface HUDProps {
   homeworldCluesFound: number;
   animationMode?: 'auto' | 'always' | 'idle';
   onToggleAnimationMode?: () => void;
+  onOpenInstallModal?: () => void;
 }
 
 export const HUD: React.FC<HUDProps> = ({
@@ -50,6 +53,7 @@ export const HUD: React.FC<HUDProps> = ({
   homeworldCluesFound,
   animationMode = 'auto',
   onToggleAnimationMode,
+  onOpenInstallModal,
 }) => {
   return (
     <div className="absolute inset-0 pointer-events-none z-10 flex flex-col justify-between p-4 md:p-6 text-slate-200">
@@ -178,10 +182,24 @@ export const HUD: React.FC<HUDProps> = ({
               </button>
             )}
 
+            {onOpenInstallModal && (
+              <button
+                onClick={() => {
+                  soundEngine.playUiClick();
+                  onOpenInstallModal();
+                }}
+                title="Установить игру на смартфон (PWA)"
+                className="bg-gradient-to-r from-cyan-900/80 to-blue-900/80 hover:from-cyan-800 hover:to-blue-800 border border-cyan-400/60 p-2.5 rounded-lg transition-all text-cyan-200 flex items-center gap-1.5 text-xs font-semibold shadow-md shadow-cyan-950/40 cursor-pointer"
+              >
+                <Smartphone className="w-4 h-4 text-cyan-400" />
+                <span className="hidden sm:inline font-mono-tech">APP (PWA)</span>
+              </button>
+            )}
+
             <button
               onClick={onToggleMute}
               title="Mute / Unmute Audio"
-              className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-700 hover:border-slate-500 text-slate-300 transition-all"
+              className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-700 hover:border-slate-500 text-slate-300 transition-all cursor-pointer"
             >
               {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
             </button>
